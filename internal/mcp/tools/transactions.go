@@ -12,7 +12,6 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
-// TransactionsArgs defines the arguments for the get transactions tool
 type TransactionsArgs struct {
 	AccountID   string    `json:"account_id" jsonschema:"required,description=The ID of the account to retrieve transactions for"`
 	From        *string   `json:"from,omitempty" jsonschema:"description=Filter transactions from this date (format: yyyy-mm-dd)"`
@@ -23,32 +22,26 @@ type TransactionsArgs struct {
 	IDs         *[]string `json:"ids,omitempty" jsonschema:"description=Filter transactions by specific IDs"`
 }
 
-// PluggyTransactionsTool is the tool handler for fetching account transactions
 type PluggyTransactionsTool struct {
 	client *pluggy.Client
 }
 
-// NewPluggyTransactionsTool creates a new transactions tool handler
 func NewPluggyTransactionsTool(client *pluggy.Client) *PluggyTransactionsTool {
 	return &PluggyTransactionsTool{client}
 }
 
-// ToolName returns the name of the tool
 func (t *PluggyTransactionsTool) Name() string {
 	return "get_account_transactions"
 }
 
-// ToolDescription returns the description of the tool
 func (t *PluggyTransactionsTool) Description() string {
 	return "Retrieves transactions for a specific account with optional filters"
 }
 
-// Handle returns the handler function for the registry
 func (t *PluggyTransactionsTool) Handle() internalMcp.ToolHandlerFunc {
 	return t.handleGetTransactions
 }
 
-// handleGetTransactions is the implementation of the transactions tool handler
 func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*mcp.ToolResponse, error) {
 	if args.AccountID == "" {
 		errorMessage := "Account ID is required"
@@ -57,7 +50,6 @@ func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*
 
 	filter := &pluggy.TransactionFilter{}
 
-	// Process from date filter
 	if args.From != nil && *args.From != "" {
 		from, err := time.Parse("2006-01-02", *args.From)
 		if err == nil {
@@ -69,7 +61,6 @@ func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*
 		}
 	}
 
-	// Process to date filter
 	if args.To != nil && *args.To != "" {
 		to, err := time.Parse("2006-01-02", *args.To)
 		if err == nil {
@@ -81,7 +72,6 @@ func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*
 		}
 	}
 
-	// Process pagination
 	if args.Page != nil && *args.Page > 0 {
 		filter.Page = *args.Page
 		logger.Info("Transaction page:", filter.Page)
@@ -92,7 +82,6 @@ func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*
 		logger.Info("Transaction page size:", filter.PageSize)
 	}
 
-	// Process created from date
 	if args.CreatedFrom != nil && *args.CreatedFrom != "" {
 		createdFrom, err := time.Parse(time.RFC3339, *args.CreatedFrom)
 		if err == nil {
@@ -104,20 +93,17 @@ func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*
 		}
 	}
 
-	// Process IDs filter
 	if args.IDs != nil && len(*args.IDs) > 0 {
 		filter.IDs = *args.IDs
 		logger.Info("Filter by IDs:", filter.IDs)
 	}
 
-	// Fetch transactions from Pluggy
 	transactions, err := t.client.GetTransactions(args.AccountID, filter)
 	if err != nil {
 		errorMessage := fmt.Sprintf("Error getting transactions: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	// Marshal transactions to JSON
 	transactionsJSON, err := json.Marshal(transactions)
 	if err != nil {
 		errorMessage := fmt.Sprintf("Error marshalling transactions: %v", err)

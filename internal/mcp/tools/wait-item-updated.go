@@ -1,14 +1,14 @@
 package tools
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	mcp "github.com/metoro-io/mcp-golang"
 
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/logger"
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/pluggy"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
+	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
 type PluggyWaitItemUpdatedTool struct {
@@ -19,91 +19,47 @@ func NewPluggyWaitItemUpdatedTool(client *pluggy.Client) *PluggyWaitItemUpdatedT
 	return &PluggyWaitItemUpdatedTool{client}
 }
 
-func (t *PluggyWaitItemUpdatedTool) Tool() mcp.Tool {
-	return mcp.Tool{
-		Name:        "pluggy_wait_item_updated",
-		Description: "Waits for an item to complete updating and returns final item status",
-		InputSchema: mcp.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]interface{}{
-				"item_id": map[string]interface{}{
-					"type":        "string",
-					"description": "The Pluggy item ID to wait for update completion",
-				},
-			},
-			Required: []string{"item_id"},
-		},
-		Annotations: mcp.ToolAnnotation{
-			Title:          "Wait for Item Update",
-			ReadOnlyHint:   true,
-			OpenWorldHint:  true,
-			IdempotentHint: true,
-		},
-	}
+func (t *PluggyWaitItemUpdatedTool) Name() string {
+	return "pluggy_wait_item_updated"
 }
 
-func (t *PluggyWaitItemUpdatedTool) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	args := request.Params.Arguments
-	itemID, ok := args["item_id"].(string)
-	if !ok {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: "Invalid item_id parameter: must be a string",
-				},
-			},
-			IsError: true,
-		}, nil
+func (t *PluggyWaitItemUpdatedTool) Description() string {
+	return "Waits for an item to complete updating and returns final item status"
+}
+
+func (t *PluggyWaitItemUpdatedTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleWaitItemUpdated
+}
+
+type WaitItemUpdatedArgs struct {
+	ItemID string `json:"item_id" jsonschema:"required,description=The Pluggy item ID to wait for update completion"`
+}
+
+func (t *PluggyWaitItemUpdatedTool) handleWaitItemUpdated(args WaitItemUpdatedArgs) (*mcp.ToolResponse, error) {
+	if args.ItemID == "" {
+		errorMessage := "Invalid item_id parameter: must be a non-empty string"
+		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	logger.Info("Waiting for item to update:", itemID)
+	logger.Info("Waiting for item to update:", args.ItemID)
 
-	err := t.client.WaitUpdated(itemID)
+	err := t.client.WaitUpdated(args.ItemID)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Error waiting for item update: %v", err),
-				},
-			},
-			IsError: true,
-		}, nil
+		errorMessage := fmt.Sprintf("Error waiting for item update: %v", err)
+		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	item, err := t.client.GetItem(itemID)
+	item, err := t.client.GetItem(args.ItemID)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Error getting updated item: %v", err),
-				},
-			},
-			IsError: true,
-		}, nil
+		errorMessage := fmt.Sprintf("Error getting updated item: %v", err)
+		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
 	strItem, err := json.Marshal(item)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Error marshalling updated item: %v", err),
-				},
-			},
-			IsError: true,
-		}, nil
+		errorMessage := fmt.Sprintf("Error marshalling updated item: %v", err)
+		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Type: "text",
-				Text: string(strItem),
-			},
-		},
-	}, nil
+	return mcp.NewToolResponse(mcp.NewTextContent(string(strItem))), nil
 }

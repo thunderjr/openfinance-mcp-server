@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/logger"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 )
 
 func (c *Client) ConnectToken(itemID string) (string, error) {
