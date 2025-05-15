@@ -3,8 +3,8 @@ package pluggy
 import (
 	"net/http"
 	"time"
-	
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/logger"
+
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 )
 
 type Client struct {

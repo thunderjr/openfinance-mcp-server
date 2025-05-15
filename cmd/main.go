@@ -1,61 +1,54 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/mark3labs/mcp-go/server"
+	server "github.com/metoro-io/mcp-golang"
+	"github.com/metoro-io/mcp-golang/transport/stdio"
 
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/logger"
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/mcp"
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/pluggy"
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/redis"
-
-	"github.com/thunderjr/openfinance-mcp-server/internal/mcp/resources"
 	"github.com/thunderjr/openfinance-mcp-server/internal/mcp/tools"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/redis"
 )
 
 func main() {
-	if err := logger.Init("openfinance-mcp.log"); err != nil {
-		fmt.Printf("Error initializing logger: %v\n", err)
-		os.Exit(1)
-	}
+	handleErr("logger.Init", logger.Init("openfinance-mcp.log"))
 	defer logger.Close()
-
-	logger.Info("Starting OpenFinance MCP Server")
 
 	pluggyClient := pluggy.NewClient(pluggy.NewAuth(redis.Instance()))
 
-	s := server.NewMCPServer(
-		"OpenFinance MCP",
-		"0.0.1",
-		server.WithToolCapabilities(true),
-	)
-
-	// Register Resources
-	resourceRegistry := mcp.NewResourceRegistry(
-		resources.NewGetTransactionsResource(pluggyClient),
-		resources.NewGetInvestmentsResource(pluggyClient),
-		resources.NewGetAccountsResource(pluggyClient),
-		resources.NewGetAccountResource(pluggyClient),
-		resources.NewGetItemResource(pluggyClient),
-		resources.NewGetBillsResource(pluggyClient),
-		resources.NewGetBillResource(pluggyClient),
-	)
-
-	resourceRegistry.Register(s)
-
-	// Register Tools
 	toolRegistry := mcp.NewToolRegistry(
 		tools.NewPluggyApiKeyTool(pluggyClient),
 		tools.NewPluggyConnectTokenTool(pluggyClient),
 		tools.NewPluggyWaitItemUpdatedTool(pluggyClient),
+		tools.NewPluggyAccountsTool(pluggyClient),
+		tools.NewPluggyAccountTool(pluggyClient),
+		tools.NewPluggyTransactionsTool(pluggyClient),
+		tools.NewPluggyInvestmentsTool(pluggyClient),
+		tools.NewPluggyItemTool(pluggyClient),
+		tools.NewPluggyBillsTool(pluggyClient),
+		tools.NewPluggyBillTool(pluggyClient),
 	)
 
-	toolRegistry.Register(s)
+	logger.Info("Starting OpenFinance MCP Server")
 
-	if err := server.ServeStdio(s); err != nil {
-		logger.Errorf("Server error: %v", err)
+	server := server.NewServer(stdio.NewStdioServerTransport())
+	handleErr("Tools Registration", toolRegistry.Register(server))
+	handleErr("Server Startup", server.Serve())
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
+}
+
+func handleErr(prefix string, err error) {
+	if err != nil {
+		log.Fatalf("[%s] Err: %v", prefix, err)
 	}
 }

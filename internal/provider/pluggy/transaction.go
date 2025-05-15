@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
-
-	"github.com/thunderjr/openfinance-mcp-server/internal/core"
 )
 
 type TransactionFilter struct {
@@ -70,30 +67,4 @@ func (c *Client) GetTransactions(accountID string, query *TransactionFilter) (*p
 	}
 
 	return &data, nil
-}
-
-func (tx *Transaction) ToStatement() *core.Statement {
-	var (
-		currentInstallment int
-		totalInstallments  int
-	)
-
-	name := tx.Description
-	if tx.CreditCardMetadata != nil {
-		currentInstallment = tx.CreditCardMetadata.InstallmentNumber
-		totalInstallments = tx.CreditCardMetadata.TotalInstallments
-
-		re := regexp.MustCompile(`\d{1,2}\/\d{1,2}`)
-		name = strings.TrimSpace(re.ReplaceAllString(tx.Description, ""))
-	}
-
-	return &core.Statement{
-		Name:               name,
-		CorrelationID:      tx.ID,
-		Timestamp:          tx.Date,
-		Amount:             tx.Amount,
-		CurrentInstallment: &currentInstallment,
-		TotalInstallments:  &totalInstallments,
-		MonthKey:           fmt.Sprintf("%d-%02d", tx.Date.Year(), tx.Date.Month()),
-	}
 }

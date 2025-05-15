@@ -1,13 +1,13 @@
 package tools
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	mcp "github.com/metoro-io/mcp-golang"
 
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/logger"
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/pluggy"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
+	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
 type PluggyConnectTokenTool struct {
@@ -18,65 +18,35 @@ func NewPluggyConnectTokenTool(client *pluggy.Client) *PluggyConnectTokenTool {
 	return &PluggyConnectTokenTool{client}
 }
 
-func (t *PluggyConnectTokenTool) Tool() mcp.Tool {
-	return mcp.Tool{
-		Name:        "pluggy_connect_token",
-		Description: "Generates a new connect token for a specific Pluggy item",
-		InputSchema: mcp.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]interface{}{
-				"item_id": map[string]interface{}{
-					"type":        "string",
-					"description": "The Pluggy item ID to generate a connect token for",
-				},
-			},
-			Required: []string{"item_id"},
-		},
-		Annotations: mcp.ToolAnnotation{
-			Title:          "Generate Connect Token",
-			ReadOnlyHint:   false,
-			OpenWorldHint:  true,
-			IdempotentHint: true,
-		},
-	}
+func (t *PluggyConnectTokenTool) Name() string {
+	return "pluggy_connect_token"
 }
 
-func (t *PluggyConnectTokenTool) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	args := request.Params.Arguments
-	itemID, ok := args["item_id"].(string)
-	if !ok {
-		return &mcp.CallToolResult{
-			IsError: true,
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: "Invalid item_id parameter: must be a string",
-				},
-			},
-		}, nil
+func (t *PluggyConnectTokenTool) Description() string {
+	return "Generates a new connect token for a specific Pluggy item"
+}
+
+func (t *PluggyConnectTokenTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleConnectToken
+}
+
+type ConnectTokenArgs struct {
+	ItemID string `json:"item_id" jsonschema:"required,description=The Pluggy item ID to generate a connect token for"`
+}
+
+func (t *PluggyConnectTokenTool) handleConnectToken(args ConnectTokenArgs) (*mcp.ToolResponse, error) {
+	if args.ItemID == "" {
+		errorMessage := "Invalid item_id parameter: must be a non-empty string"
+		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	logger.Info("Generating connect token for item:", itemID)
+	logger.Info("Generating connect token for item:", args.ItemID)
 
-	token, err := t.client.ConnectToken(itemID)
+	token, err := t.client.ConnectToken(args.ItemID)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Error generating connect token: %v", err),
-				},
-			},
-			IsError: true,
-		}, nil
+		errorMessage := fmt.Sprintf("Error generating connect token: %v", err)
+		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Type: "text",
-				Text: token,
-			},
-		},
-	}, nil
+	return mcp.NewToolResponse(mcp.NewTextContent(token)), nil
 }

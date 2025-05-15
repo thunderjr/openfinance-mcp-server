@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/logger"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 )
 
 type InvestmentType string

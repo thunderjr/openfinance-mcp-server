@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/thunderjr/openfinance-mcp-server/internal/infra/logger"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 )
 
 func (c *Client) GetAccounts(itemID string) (*paginatedResponse[account], error) {
