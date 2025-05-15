@@ -2,7 +2,7 @@
 
 The OpenFinance MCP Server is a Go-based application that connects to the Brazilian Open Finance ecosystem through [Pluggy.ai](https://www.pluggy.ai/en), providing secure and structured access to financial data such as account balances, transactions, and investments. It is designed to expose these resources to Large Language Models (LLMs) and other AI agents via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction), facilitating the development of intelligent financial applications.
 
-*Note: Ensure to grant the necessary consents via [Pluggy Connect](https://meu.pluggy.ai/en) before accessing the endpoints.*
+*Note: Ensure to grant the necessary consents via [Pluggy Connect](https://meu.pluggy.ai/en) before using.*
 
 ### Installation
 
@@ -26,7 +26,7 @@ make build
 ```json
 {
   "mcpServers": {
-    "golang-mcp-server": {
+    "openfinance-mcp-server": {
       "command": "<project_path>/bin/openfinance-mcp-server",
       "args": [],
       "env": {
