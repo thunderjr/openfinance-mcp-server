@@ -1,0 +1,7 @@
+/bin
+*.swp
+*.swo
+.env*
+.DS_Store
+*.log
+node_modules
