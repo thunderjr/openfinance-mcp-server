@@ -15,10 +15,6 @@ type Client struct {
 }
 
 func NewClient(auth *auth) *Client {
-	if PLUGGY_CLIENT_ID == "" || PLUGGY_CLIENT_SECRET == "" {
-		logger.Fatal("missing Pluggy.ai credentials")
-	}
-
 	apiKey, err := auth.getApiKey()
 	if err != nil {
 		logger.Fatal(err)

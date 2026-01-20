@@ -9,8 +9,8 @@ import (
 
 func (c *Client) ApiKey() (string, error) {
 	data, err := json.Marshal(map[string]string{
-		"clientId":     PLUGGY_CLIENT_ID,
-		"clientSecret": PLUGGY_CLIENT_SECRET,
+		"clientId":     c.auth.getClientID(),
+		"clientSecret": c.auth.getClientSecret(),
 	})
 	if err != nil {
 		return "", fmt.Errorf("[pluggy.ApiKey] error marshalling data: %w", err)
