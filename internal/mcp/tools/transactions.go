@@ -12,8 +12,8 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
-type TransactionsArgs struct {
-	AccountID   string    `json:"account_id" jsonschema:"required,description=The ID of the account to retrieve transactions for"`
+type ListTransactionsArgs struct {
+	AccountID   string    `json:"account_id" jsonschema:"required,description=The account ID to list transactions for"`
 	From        *string   `json:"from,omitempty" jsonschema:"description=Filter transactions from this date (format: yyyy-mm-dd)"`
 	To          *string   `json:"to,omitempty" jsonschema:"description=Filter transactions to this date (format: yyyy-mm-dd)"`
 	Page        *int      `json:"page,omitempty" jsonschema:"description=Page number for pagination (default: 1)"`
@@ -22,27 +22,35 @@ type TransactionsArgs struct {
 	IDs         *[]string `json:"ids,omitempty" jsonschema:"description=Filter transactions by specific IDs"`
 }
 
-type PluggyTransactionsTool struct {
+type ListTransactionsTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyTransactionsTool(client *pluggy.Client) *PluggyTransactionsTool {
-	return &PluggyTransactionsTool{client}
+func NewListTransactionsTool(client *pluggy.Client) *ListTransactionsTool {
+	return &ListTransactionsTool{client}
 }
 
-func (t *PluggyTransactionsTool) Name() string {
-	return "get_account_transactions"
+func (t *ListTransactionsTool) Name() string {
+	return "list_transactions"
 }
 
-func (t *PluggyTransactionsTool) Description() string {
-	return "Retrieves transactions for a specific account with optional filters"
+func (t *ListTransactionsTool) Description() string {
+	return `Queries transaction history for an account with optional filters.
+
+Use this tool when:
+- The user wants to see their transaction history
+- Analyzing spending patterns or categories
+- Looking for specific transactions by date range
+- Building financial reports or summaries
+
+Returns: Paginated list of transactions with amounts, dates, descriptions, and categories.`
 }
 
-func (t *PluggyTransactionsTool) Handle() internalMcp.ToolHandlerFunc {
-	return t.handleGetTransactions
+func (t *ListTransactionsTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleListTransactions
 }
 
-func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*mcp.ToolResponse, error) {
+func (t *ListTransactionsTool) handleListTransactions(args ListTransactionsArgs) (*mcp.ToolResponse, error) {
 	if args.AccountID == "" {
 		errorMessage := "Account ID is required"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
@@ -98,9 +106,11 @@ func (t *PluggyTransactionsTool) handleGetTransactions(args TransactionsArgs) (*
 		logger.Info("Filter by IDs:", filter.IDs)
 	}
 
+	logger.Info("Listing transactions for account:", args.AccountID)
+
 	transactions, err := t.client.GetTransactions(args.AccountID, filter)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting transactions: %v", err)
+		errorMessage := fmt.Sprintf("Error listing transactions: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 

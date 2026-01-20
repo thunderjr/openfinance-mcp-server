@@ -10,41 +10,48 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
-type PluggyConnectTokenTool struct {
+type CreateBankLinkTokenTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyConnectTokenTool(client *pluggy.Client) *PluggyConnectTokenTool {
-	return &PluggyConnectTokenTool{client}
+func NewCreateBankLinkTokenTool(client *pluggy.Client) *CreateBankLinkTokenTool {
+	return &CreateBankLinkTokenTool{client}
 }
 
-func (t *PluggyConnectTokenTool) Name() string {
-	return "pluggy_connect_token"
+func (t *CreateBankLinkTokenTool) Name() string {
+	return "create_bank_link_token"
 }
 
-func (t *PluggyConnectTokenTool) Description() string {
-	return "Generates a new connect token for a specific Pluggy item"
+func (t *CreateBankLinkTokenTool) Description() string {
+	return `Creates a token for linking or updating a bank connection.
+
+Use this tool when:
+- The user wants to connect a new bank account
+- A bank connection needs to be re-authenticated
+- You need to generate a link for the user to update credentials
+
+Returns: A connect token URL that can be used to link/update bank credentials.`
 }
 
-func (t *PluggyConnectTokenTool) Handle() internalMcp.ToolHandlerFunc {
-	return t.handleConnectToken
+func (t *CreateBankLinkTokenTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleCreateBankLinkToken
 }
 
-type ConnectTokenArgs struct {
-	ItemID string `json:"item_id" jsonschema:"required,description=The Pluggy item ID to generate a connect token for"`
+type CreateBankLinkTokenArgs struct {
+	ConnectionID string `json:"connection_id" jsonschema:"required,description=The connection ID to generate a link token for"`
 }
 
-func (t *PluggyConnectTokenTool) handleConnectToken(args ConnectTokenArgs) (*mcp.ToolResponse, error) {
-	if args.ItemID == "" {
-		errorMessage := "Invalid item_id parameter: must be a non-empty string"
+func (t *CreateBankLinkTokenTool) handleCreateBankLinkToken(args CreateBankLinkTokenArgs) (*mcp.ToolResponse, error) {
+	if args.ConnectionID == "" {
+		errorMessage := "Invalid connection_id parameter: must be a non-empty string"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	logger.Info("Generating connect token for item:", args.ItemID)
+	logger.Info("Creating bank link token for connection:", args.ConnectionID)
 
-	token, err := t.client.ConnectToken(args.ItemID)
+	token, err := t.client.ConnectToken(args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error generating connect token: %v", err)
+		errorMessage := fmt.Sprintf("Error creating bank link token: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 

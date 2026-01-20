@@ -11,47 +11,54 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
-type ItemArgs struct {
-	ItemID string `json:"item_id" jsonschema:"required,description=The ID of the item to retrieve details for"`
+type GetConnectionStatusArgs struct {
+	ConnectionID string `json:"connection_id" jsonschema:"required,description=The connection ID to check status for"`
 }
 
-type PluggyItemTool struct {
+type GetConnectionStatusTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyItemTool(client *pluggy.Client) *PluggyItemTool {
-	return &PluggyItemTool{client}
+func NewGetConnectionStatusTool(client *pluggy.Client) *GetConnectionStatusTool {
+	return &GetConnectionStatusTool{client}
 }
 
-func (t *PluggyItemTool) Name() string {
-	return "get_item_details"
+func (t *GetConnectionStatusTool) Name() string {
+	return "get_connection_status"
 }
 
-func (t *PluggyItemTool) Description() string {
-	return "Retrieves detailed information for a specific item"
+func (t *GetConnectionStatusTool) Description() string {
+	return `Checks the health and sync status of a bank connection.
+
+Use this tool when:
+- You need to verify if a connection is still active
+- Checking if a connection needs re-authentication
+- Debugging connection issues before querying data
+
+Returns: Connection details including status, last sync time, and any errors.`
 }
 
-func (t *PluggyItemTool) Handle() internalMcp.ToolHandlerFunc {
-	return t.handleGetItem
+func (t *GetConnectionStatusTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleGetConnectionStatus
 }
 
-func (t *PluggyItemTool) handleGetItem(args ItemArgs) (*mcp.ToolResponse, error) {
-	if args.ItemID == "" {
-		errorMessage := "Item ID is required"
+func (t *GetConnectionStatusTool) handleGetConnectionStatus(args GetConnectionStatusArgs) (*mcp.ToolResponse, error) {
+	if args.ConnectionID == "" {
+		errorMessage := "Connection ID is required"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	logger.Info("Getting item details for:", args.ItemID)
+	logger.Info("Getting connection status for:", args.ConnectionID)
 
-	item, err := t.client.GetItem(args.ItemID)
+	item, err := t.client.GetItem(args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting item: %v", err)
+		errorMessage := fmt.Sprintf("Error getting connection status: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
 	itemJSON, err := json.Marshal(item)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling item: %v", err)
+		errorMessage := fmt.Sprintf("Error marshalling connection status: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 

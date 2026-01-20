@@ -11,36 +11,43 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
-type InvestmentsArgs struct {
-	ItemID   string  `json:"item_id" jsonschema:"required,description=The ID of the item to retrieve investments for"`
-	Type     *string `json:"type,omitempty" jsonschema:"description=Filter investments by type (COE, EQUITY, ETF, FIXED_INCOME, MUTUAL_FUND, SECURITY, OTHER)"`
-	Page     *int    `json:"page,omitempty" jsonschema:"description=Page number for pagination (default: 1)"`
-	PageSize *int    `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 500)"`
+type ListInvestmentsArgs struct {
+	ConnectionID string  `json:"connection_id" jsonschema:"required,description=The connection ID to list investments for"`
+	Type         *string `json:"type,omitempty" jsonschema:"description=Filter investments by type (COE, EQUITY, ETF, FIXED_INCOME, MUTUAL_FUND, SECURITY, OTHER)"`
+	Page         *int    `json:"page,omitempty" jsonschema:"description=Page number for pagination (default: 1)"`
+	PageSize     *int    `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 500)"`
 }
 
-type PluggyInvestmentsTool struct {
+type ListInvestmentsTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyInvestmentsTool(client *pluggy.Client) *PluggyInvestmentsTool {
-	return &PluggyInvestmentsTool{client}
+func NewListInvestmentsTool(client *pluggy.Client) *ListInvestmentsTool {
+	return &ListInvestmentsTool{client}
 }
 
-func (t *PluggyInvestmentsTool) Name() string {
-	return "get_item_investments"
+func (t *ListInvestmentsTool) Name() string {
+	return "list_investments"
 }
 
-func (t *PluggyInvestmentsTool) Description() string {
-	return "Retrieves investments associated with a specific item with optional filters"
+func (t *ListInvestmentsTool) Description() string {
+	return `Lists investment positions associated with a bank connection.
+
+Use this tool when:
+- The user asks about their investments or portfolio
+- Checking investment values or performance
+- Looking for specific investment types (stocks, ETFs, fixed income)
+
+Returns: List of investment positions with current values, types, and quantities.`
 }
 
-func (t *PluggyInvestmentsTool) Handle() internalMcp.ToolHandlerFunc {
-	return t.handleGetInvestments
+func (t *ListInvestmentsTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleListInvestments
 }
 
-func (t *PluggyInvestmentsTool) handleGetInvestments(args InvestmentsArgs) (*mcp.ToolResponse, error) {
-	if args.ItemID == "" {
-		errorMessage := "Item ID is required"
+func (t *ListInvestmentsTool) handleListInvestments(args ListInvestmentsArgs) (*mcp.ToolResponse, error) {
+	if args.ConnectionID == "" {
+		errorMessage := "Connection ID is required"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
@@ -61,9 +68,11 @@ func (t *PluggyInvestmentsTool) handleGetInvestments(args InvestmentsArgs) (*mcp
 		logger.Info("Investments page size:", filter.PageSize)
 	}
 
-	investments, err := t.client.GetInvestments(args.ItemID, filter)
+	logger.Info("Listing investments for connection:", args.ConnectionID)
+
+	investments, err := t.client.GetInvestments(args.ConnectionID, filter)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting investments: %v", err)
+		errorMessage := fmt.Sprintf("Error listing investments: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 

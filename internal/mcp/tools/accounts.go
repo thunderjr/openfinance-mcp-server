@@ -11,63 +11,79 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
-type AccountsArgs struct {
-	ItemID string `json:"item_id" jsonschema:"required,description=The ID of the item to retrieve accounts for"`
+type ListAccountsArgs struct {
+	ConnectionID string `json:"connection_id" jsonschema:"required,description=The connection ID to list accounts for"`
 }
 
-type PluggyAccountsTool struct {
+type ListAccountsTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyAccountsTool(client *pluggy.Client) *PluggyAccountsTool {
-	return &PluggyAccountsTool{client}
+func NewListAccountsTool(client *pluggy.Client) *ListAccountsTool {
+	return &ListAccountsTool{client}
 }
 
-func (t *PluggyAccountsTool) Name() string {
-	return "get_item_accounts"
+func (t *ListAccountsTool) Name() string {
+	return "list_accounts"
 }
 
-func (t *PluggyAccountsTool) Description() string {
-	return "Retrieves all accounts associated with a specific item"
+func (t *ListAccountsTool) Description() string {
+	return `Lists all accounts associated with a bank connection.
+
+Use this tool when:
+- You need to see all accounts for a connected bank
+- Looking for account IDs to query transactions or balances
+- The user asks about their accounts at a specific bank
+
+Returns: List of accounts with IDs, types, names, and current balances.`
 }
 
-func (t *PluggyAccountsTool) Handle() internalMcp.ToolHandlerFunc {
-	return t.handleGetAccounts
+func (t *ListAccountsTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleListAccounts
 }
 
-type AccountArgs struct {
-	AccountID string `json:"account_id" jsonschema:"required,description=The ID of the account to retrieve details for"`
+type GetAccountArgs struct {
+	AccountID string `json:"account_id" jsonschema:"required,description=The account ID to retrieve details for"`
 }
 
-type PluggyAccountTool struct {
+type GetAccountTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyAccountTool(client *pluggy.Client) *PluggyAccountTool {
-	return &PluggyAccountTool{client}
+func NewGetAccountTool(client *pluggy.Client) *GetAccountTool {
+	return &GetAccountTool{client}
 }
 
-func (t *PluggyAccountTool) Name() string {
-	return "get_account_details"
+func (t *GetAccountTool) Name() string {
+	return "get_account"
 }
 
-func (t *PluggyAccountTool) Description() string {
-	return "Retrieves detailed information for a specific account"
+func (t *GetAccountTool) Description() string {
+	return `Gets detailed information for a specific account.
+
+Use this tool when:
+- You need current balance for a specific account
+- Looking for account details like number, type, or owner
+- The user asks about a specific account
+
+Returns: Account details including balance, type, name, and metadata.`
 }
 
-func (t *PluggyAccountTool) Handle() internalMcp.ToolHandlerFunc {
+func (t *GetAccountTool) Handle() internalMcp.ToolHandlerFunc {
 	return t.handleGetAccount
 }
 
-func (t *PluggyAccountsTool) handleGetAccounts(args AccountsArgs) (*mcp.ToolResponse, error) {
-	if args.ItemID == "" {
-		errorMessage := "Item ID is required"
+func (t *ListAccountsTool) handleListAccounts(args ListAccountsArgs) (*mcp.ToolResponse, error) {
+	if args.ConnectionID == "" {
+		errorMessage := "Connection ID is required"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	accounts, err := t.client.GetAccounts(args.ItemID)
+	logger.Info("Listing accounts for connection:", args.ConnectionID)
+
+	accounts, err := t.client.GetAccounts(args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting accounts: %v", err)
+		errorMessage := fmt.Sprintf("Error listing accounts: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
@@ -80,7 +96,7 @@ func (t *PluggyAccountsTool) handleGetAccounts(args AccountsArgs) (*mcp.ToolResp
 	return mcp.NewToolResponse(mcp.NewTextContent(string(accountsJSON))), nil
 }
 
-func (t *PluggyAccountTool) handleGetAccount(args AccountArgs) (*mcp.ToolResponse, error) {
+func (t *GetAccountTool) handleGetAccount(args GetAccountArgs) (*mcp.ToolResponse, error) {
 	if args.AccountID == "" {
 		errorMessage := "Account ID is required"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)

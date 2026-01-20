@@ -11,41 +11,48 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
-type BillsArgs struct {
-	AccountID string `json:"account_id" jsonschema:"required,description=The ID of the account to retrieve bills for"`
+type ListCreditCardBillsArgs struct {
+	AccountID string `json:"account_id" jsonschema:"required,description=The credit card account ID to list bills for"`
 }
 
-type PluggyBillsTool struct {
+type ListCreditCardBillsTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyBillsTool(client *pluggy.Client) *PluggyBillsTool {
-	return &PluggyBillsTool{client}
+func NewListCreditCardBillsTool(client *pluggy.Client) *ListCreditCardBillsTool {
+	return &ListCreditCardBillsTool{client}
 }
 
-func (t *PluggyBillsTool) Name() string {
-	return "get_account_bills"
+func (t *ListCreditCardBillsTool) Name() string {
+	return "list_credit_card_bills"
 }
 
-func (t *PluggyBillsTool) Description() string {
-	return "Retrieves all bills associated with a specific account"
+func (t *ListCreditCardBillsTool) Description() string {
+	return `Lists credit card bills for an account.
+
+Use this tool when:
+- The user asks about their credit card bills
+- Checking bill due dates or amounts
+- Looking at credit card payment history
+
+Returns: List of bills with amounts, due dates, and payment status.`
 }
 
-func (t *PluggyBillsTool) Handle() internalMcp.ToolHandlerFunc {
-	return t.handleGetBills
+func (t *ListCreditCardBillsTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleListCreditCardBills
 }
 
-func (t *PluggyBillsTool) handleGetBills(args BillsArgs) (*mcp.ToolResponse, error) {
+func (t *ListCreditCardBillsTool) handleListCreditCardBills(args ListCreditCardBillsArgs) (*mcp.ToolResponse, error) {
 	if args.AccountID == "" {
 		errorMessage := "Account ID is required"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	logger.Info("Getting bills for account:", args.AccountID)
+	logger.Info("Listing credit card bills for account:", args.AccountID)
 
 	bills, err := t.client.GetBills(args.AccountID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting bills: %v", err)
+		errorMessage := fmt.Sprintf("Error listing credit card bills: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
@@ -58,41 +65,48 @@ func (t *PluggyBillsTool) handleGetBills(args BillsArgs) (*mcp.ToolResponse, err
 	return mcp.NewToolResponse(mcp.NewTextContent(string(billsJSON))), nil
 }
 
-type BillArgs struct {
-	BillID string `json:"bill_id" jsonschema:"required,description=The ID of the bill to retrieve details for"`
+type GetCreditCardBillArgs struct {
+	BillID string `json:"bill_id" jsonschema:"required,description=The bill ID to retrieve details for"`
 }
 
-type PluggyBillTool struct {
+type GetCreditCardBillTool struct {
 	client *pluggy.Client
 }
 
-func NewPluggyBillTool(client *pluggy.Client) *PluggyBillTool {
-	return &PluggyBillTool{client}
+func NewGetCreditCardBillTool(client *pluggy.Client) *GetCreditCardBillTool {
+	return &GetCreditCardBillTool{client}
 }
 
-func (t *PluggyBillTool) Name() string {
-	return "get_bill_details"
+func (t *GetCreditCardBillTool) Name() string {
+	return "get_credit_card_bill"
 }
 
-func (t *PluggyBillTool) Description() string {
-	return "Retrieves detailed information for a specific bill"
+func (t *GetCreditCardBillTool) Description() string {
+	return `Gets detailed information for a specific credit card bill.
+
+Use this tool when:
+- The user asks about a specific bill's details
+- You need to see individual transactions within a bill
+- Checking payment details for a specific billing period
+
+Returns: Bill details including total amount, due date, transactions, and payment status.`
 }
 
-func (t *PluggyBillTool) Handle() internalMcp.ToolHandlerFunc {
-	return t.handleGetBill
+func (t *GetCreditCardBillTool) Handle() internalMcp.ToolHandlerFunc {
+	return t.handleGetCreditCardBill
 }
 
-func (t *PluggyBillTool) handleGetBill(args BillArgs) (*mcp.ToolResponse, error) {
+func (t *GetCreditCardBillTool) handleGetCreditCardBill(args GetCreditCardBillArgs) (*mcp.ToolResponse, error) {
 	if args.BillID == "" {
 		errorMessage := "Bill ID is required"
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
-	logger.Info("Getting bill details for:", args.BillID)
+	logger.Info("Getting credit card bill details for:", args.BillID)
 
 	bill, err := t.client.GetBill(args.BillID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting bill: %v", err)
+		errorMessage := fmt.Sprintf("Error getting credit card bill: %v", err)
 		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
 	}
 
