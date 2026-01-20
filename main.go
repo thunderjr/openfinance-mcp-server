@@ -1,11 +1,15 @@
 package main
 
 import (
+	_ "embed"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
+	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
 	server "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
@@ -17,23 +21,45 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/redis"
 )
 
+//go:embed .env
+var envFile string
+
 func main() {
-	handleErr("logger.Init", logger.Init("openfinance-mcp.log"))
+	envs, err := godotenv.Parse(strings.NewReader(envFile))
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	for k, v := range envs {
+		os.Setenv(k, v)
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("Error getting home directory: %v", err)
+	}
+
+	logDir := filepath.Join(homeDir, ".config", "finops")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		log.Fatalf("Error creating log directory: %v", err)
+	}
+
+	handleErr("logger.Init", logger.Init(filepath.Join(logDir, "openfinance-mcp.log")))
 	defer logger.Close()
 
 	pluggyClient := pluggy.NewClient(pluggy.NewAuth(redis.Instance()))
 
 	toolRegistry := mcp.NewToolRegistry(
-		tools.NewPluggyApiKeyTool(pluggyClient),
-		tools.NewPluggyConnectTokenTool(pluggyClient),
-		tools.NewPluggyWaitItemUpdatedTool(pluggyClient),
-		tools.NewPluggyAccountsTool(pluggyClient),
-		tools.NewPluggyAccountTool(pluggyClient),
-		tools.NewPluggyTransactionsTool(pluggyClient),
-		tools.NewPluggyInvestmentsTool(pluggyClient),
-		tools.NewPluggyItemTool(pluggyClient),
-		tools.NewPluggyBillsTool(pluggyClient),
-		tools.NewPluggyBillTool(pluggyClient),
+		tools.NewListConnectionsTool(),
+		tools.NewCreateBankLinkTokenTool(pluggyClient),
+		tools.NewWaitForSyncTool(pluggyClient),
+		tools.NewGetConnectionStatusTool(pluggyClient),
+		tools.NewListAccountsTool(pluggyClient),
+		tools.NewGetAccountTool(pluggyClient),
+		tools.NewListTransactionsTool(pluggyClient),
+		tools.NewListInvestmentsTool(pluggyClient),
+		tools.NewListCreditCardBillsTool(pluggyClient),
+		tools.NewGetCreditCardBillTool(pluggyClient),
 	)
 
 	logger.Info("Starting OpenFinance MCP Server")
