@@ -2,7 +2,6 @@ package tools
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -50,8 +49,7 @@ func (t *ListConnectionsTool) handleListConnections(args ListConnectionsArgs) (*
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting home directory: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error getting home directory", err)
 	}
 
 	configPath := filepath.Join(homeDir, ".config", "finops", "accounts.json")
@@ -60,8 +58,7 @@ func (t *ListConnectionsTool) handleListConnections(args ListConnectionsArgs) (*
 		if os.IsNotExist(err) {
 			return mcp.NewToolResponse(mcp.NewTextContent("[]")), nil
 		}
-		errorMessage := fmt.Sprintf("Error reading accounts config: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error reading accounts config", err)
 	}
 
 	var rawConnections []struct {
@@ -71,8 +68,7 @@ func (t *ListConnectionsTool) handleListConnections(args ListConnectionsArgs) (*
 	}
 
 	if err := json.Unmarshal(data, &rawConnections); err != nil {
-		errorMessage := fmt.Sprintf("Error parsing accounts config: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error parsing accounts config", err)
 	}
 
 	connections := make([]Connection, len(rawConnections))
@@ -84,11 +80,5 @@ func (t *ListConnectionsTool) handleListConnections(args ListConnectionsArgs) (*
 		}
 	}
 
-	connectionsJSON, err := json.Marshal(connections)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling connections: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(connectionsJSON))), nil
+	return jsonResponse(connections)
 }

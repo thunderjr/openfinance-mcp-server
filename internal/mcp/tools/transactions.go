@@ -1,8 +1,6 @@
 package tools
 
 import (
-	"encoding/json"
-	"fmt"
 	"time"
 
 	mcp "github.com/metoro-io/mcp-golang"
@@ -12,12 +10,17 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
+const (
+	TransactionDefaultPageSize = 20
+	TransactionMaxPageSize     = 50
+)
+
 type ListTransactionsArgs struct {
 	AccountID   string    `json:"account_id" jsonschema:"required,description=The account ID to list transactions for"`
 	From        *string   `json:"from,omitempty" jsonschema:"description=Filter transactions from this date (format: yyyy-mm-dd)"`
 	To          *string   `json:"to,omitempty" jsonschema:"description=Filter transactions to this date (format: yyyy-mm-dd)"`
 	Page        *int      `json:"page,omitempty" jsonschema:"description=Page number for pagination (default: 1)"`
-	PageSize    *int      `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 500)"`
+	PageSize    *int      `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 50)"`
 	CreatedFrom *string   `json:"created_from,omitempty" jsonschema:"description=Filter transactions created from this date (ISO 8601 format)"`
 	IDs         *[]string `json:"ids,omitempty" jsonschema:"description=Filter transactions by specific IDs"`
 }
@@ -52,32 +55,27 @@ func (t *ListTransactionsTool) Handle() internalMcp.ToolHandlerFunc {
 
 func (t *ListTransactionsTool) handleListTransactions(args ListTransactionsArgs) (*mcp.ToolResponse, error) {
 	if args.AccountID == "" {
-		errorMessage := "Account ID is required"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Account ID is required")
 	}
 
 	filter := &pluggy.TransactionFilter{}
 
 	if args.From != nil && *args.From != "" {
 		from, err := time.Parse("2006-01-02", *args.From)
-		if err == nil {
-			filter.From = from
-			logger.Info("Filter transactions from:", filter.From)
-		} else {
-			errorMessage := fmt.Sprintf("Invalid 'from' date format: %v", err)
-			return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		if err != nil {
+			return toolError("Invalid 'from' date format", err)
 		}
+		filter.From = from
+		logger.Info("Filter transactions from:", filter.From)
 	}
 
 	if args.To != nil && *args.To != "" {
 		to, err := time.Parse("2006-01-02", *args.To)
-		if err == nil {
-			filter.To = to
-			logger.Info("Filter transactions to:", filter.To)
-		} else {
-			errorMessage := fmt.Sprintf("Invalid 'to' date format: %v", err)
-			return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		if err != nil {
+			return toolError("Invalid 'to' date format", err)
 		}
+		filter.To = to
+		logger.Info("Filter transactions to:", filter.To)
 	}
 
 	if args.Page != nil && *args.Page > 0 {
@@ -85,20 +83,20 @@ func (t *ListTransactionsTool) handleListTransactions(args ListTransactionsArgs)
 		logger.Info("Transaction page:", filter.Page)
 	}
 
+	pageSize := TransactionDefaultPageSize
 	if args.PageSize != nil && *args.PageSize > 0 {
-		filter.PageSize = *args.PageSize
-		logger.Info("Transaction page size:", filter.PageSize)
+		pageSize = min(*args.PageSize, TransactionMaxPageSize)
 	}
+	filter.PageSize = pageSize
+	logger.Info("Transaction page size:", filter.PageSize)
 
 	if args.CreatedFrom != nil && *args.CreatedFrom != "" {
 		createdFrom, err := time.Parse(time.RFC3339, *args.CreatedFrom)
-		if err == nil {
-			filter.CreatedAtFrom = createdFrom
-			logger.Info("Filter transactions created from:", filter.CreatedAtFrom)
-		} else {
-			errorMessage := fmt.Sprintf("Invalid 'created_from' date format: %v", err)
-			return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		if err != nil {
+			return toolError("Invalid 'created_from' date format", err)
 		}
+		filter.CreatedAtFrom = createdFrom
+		logger.Info("Filter transactions created from:", filter.CreatedAtFrom)
 	}
 
 	if args.IDs != nil && len(*args.IDs) > 0 {
@@ -110,15 +108,8 @@ func (t *ListTransactionsTool) handleListTransactions(args ListTransactionsArgs)
 
 	transactions, err := t.client.GetTransactions(args.AccountID, filter)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error listing transactions: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error listing transactions", err)
 	}
 
-	transactionsJSON, err := json.Marshal(transactions)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling transactions: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(transactionsJSON))), nil
+	return jsonResponse(transactions)
 }

@@ -1,9 +1,6 @@
 package tools
 
 import (
-	"encoding/json"
-	"fmt"
-
 	mcp "github.com/metoro-io/mcp-golang"
 
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
@@ -44,25 +41,17 @@ func (t *ListCreditCardBillsTool) Handle() internalMcp.ToolHandlerFunc {
 
 func (t *ListCreditCardBillsTool) handleListCreditCardBills(args ListCreditCardBillsArgs) (*mcp.ToolResponse, error) {
 	if args.AccountID == "" {
-		errorMessage := "Account ID is required"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Account ID is required")
 	}
 
 	logger.Info("Listing credit card bills for account:", args.AccountID)
 
 	bills, err := t.client.GetBills(args.AccountID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error listing credit card bills: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error listing credit card bills", err)
 	}
 
-	billsJSON, err := json.Marshal(bills)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling bills: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(billsJSON))), nil
+	return jsonResponse(bills)
 }
 
 type GetCreditCardBillArgs struct {
@@ -98,23 +87,15 @@ func (t *GetCreditCardBillTool) Handle() internalMcp.ToolHandlerFunc {
 
 func (t *GetCreditCardBillTool) handleGetCreditCardBill(args GetCreditCardBillArgs) (*mcp.ToolResponse, error) {
 	if args.BillID == "" {
-		errorMessage := "Bill ID is required"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Bill ID is required")
 	}
 
 	logger.Info("Getting credit card bill details for:", args.BillID)
 
 	bill, err := t.client.GetBill(args.BillID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting credit card bill: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error getting credit card bill", err)
 	}
 
-	billJSON, err := json.Marshal(bill)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling bill: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(billJSON))), nil
+	return jsonResponse(bill)
 }

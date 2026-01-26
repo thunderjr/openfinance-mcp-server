@@ -1,9 +1,6 @@
 package tools
 
 import (
-	"encoding/json"
-	"fmt"
-
 	mcp "github.com/metoro-io/mcp-golang"
 
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
@@ -11,11 +8,16 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
+const (
+	InvestmentDefaultPageSize = 20
+	InvestmentMaxPageSize     = 50
+)
+
 type ListInvestmentsArgs struct {
 	ConnectionID string  `json:"connection_id" jsonschema:"required,description=The connection ID to list investments for"`
 	Type         *string `json:"type,omitempty" jsonschema:"description=Filter investments by type (COE, EQUITY, ETF, FIXED_INCOME, MUTUAL_FUND, SECURITY, OTHER)"`
 	Page         *int    `json:"page,omitempty" jsonschema:"description=Page number for pagination (default: 1)"`
-	PageSize     *int    `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 500)"`
+	PageSize     *int    `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 50)"`
 }
 
 type ListInvestmentsTool struct {
@@ -47,8 +49,7 @@ func (t *ListInvestmentsTool) Handle() internalMcp.ToolHandlerFunc {
 
 func (t *ListInvestmentsTool) handleListInvestments(args ListInvestmentsArgs) (*mcp.ToolResponse, error) {
 	if args.ConnectionID == "" {
-		errorMessage := "Connection ID is required"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Connection ID is required")
 	}
 
 	filter := &pluggy.InvestmentsFilter{}
@@ -63,24 +64,19 @@ func (t *ListInvestmentsTool) handleListInvestments(args ListInvestmentsArgs) (*
 		logger.Info("Investments page:", filter.Page)
 	}
 
+	pageSize := InvestmentDefaultPageSize
 	if args.PageSize != nil && *args.PageSize > 0 {
-		filter.PageSize = *args.PageSize
-		logger.Info("Investments page size:", filter.PageSize)
+		pageSize = min(*args.PageSize, InvestmentMaxPageSize)
 	}
+	filter.PageSize = pageSize
+	logger.Info("Investments page size:", filter.PageSize)
 
 	logger.Info("Listing investments for connection:", args.ConnectionID)
 
 	investments, err := t.client.GetInvestments(args.ConnectionID, filter)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error listing investments: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error listing investments", err)
 	}
 
-	investmentsJSON, err := json.Marshal(investments)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling investments: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(investmentsJSON))), nil
+	return jsonResponse(investments)
 }

@@ -1,6 +1,7 @@
 package pluggy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,45 +18,74 @@ const (
 	ItemStatusUpdated          ItemStatus = "UPDATED"
 )
 
-func (c *Client) WaitUpdated(itemID string) error {
-	status := ItemStatusUpdating
-	for status == ItemStatusUpdating {
-		res, err := c.GetItem(itemID)
-		if err != nil {
-			return fmt.Errorf("pluggy.GetItem: error waiting updated: %w", err)
+const (
+	waitUpdatedInitialBackoff = 2 * time.Second
+	waitUpdatedMaxBackoff     = 30 * time.Second
+	waitUpdatedMaxRetries     = 30
+)
+
+// WaitUpdated polls the item status until it's no longer updating.
+// Supports context cancellation and uses exponential backoff.
+func (c *Client) WaitUpdated(ctx context.Context, itemID string) error {
+	backoff := waitUpdatedInitialBackoff
+	retries := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("pluggy.WaitUpdated: context cancelled: %w", ctx.Err())
+		default:
 		}
 
-		status = ItemStatus(res.Status)
-		time.Sleep(5 * time.Second)
-	}
+		res, err := c.GetItem(itemID)
+		if err != nil {
+			return fmt.Errorf("pluggy.WaitUpdated: error getting item: %w", err)
+		}
 
-	if status != ItemStatusUpdated {
-		return fmt.Errorf("pluggy.WaitUpdated: item status is %s", status)
-	}
+		status := ItemStatus(res.Status)
+		if status != ItemStatusUpdating {
+			if status != ItemStatusUpdated {
+				return fmt.Errorf("pluggy.WaitUpdated: item status is %s", status)
+			}
+			return nil
+		}
 
-	return nil
+		retries++
+		if retries >= waitUpdatedMaxRetries {
+			return fmt.Errorf("pluggy.WaitUpdated: max retries (%d) exceeded", waitUpdatedMaxRetries)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("pluggy.WaitUpdated: context cancelled: %w", ctx.Err())
+		case <-time.After(backoff):
+		}
+
+		// Exponential backoff with max cap
+		backoff = min(backoff*2, waitUpdatedMaxBackoff)
+	}
 }
 
 func (c *Client) GetItem(id string) (*itemResponse, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.pluggy.ai/items/%s", id), nil)
 	if err != nil {
-		return nil, fmt.Errorf("pluggy_client: error creating request: %w", err)
+		return nil, fmt.Errorf("pluggy.GetItem: error creating request: %w", err)
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
 
 	res, err := c.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("pluggy_client: error item making request: %w", err)
+		return nil, fmt.Errorf("pluggy.GetItem: error making request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("pluggy_client: error item request failed with status %d", res.StatusCode)
+		return nil, fmt.Errorf("pluggy.GetItem: request failed with status %d", res.StatusCode)
 	}
 
 	var data itemResponse
 	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
-		return nil, fmt.Errorf("pluggy_client: error item decoding response: %w", err)
+		return nil, fmt.Errorf("pluggy.GetItem: error decoding response: %w", err)
 	}
 
 	return &data, nil

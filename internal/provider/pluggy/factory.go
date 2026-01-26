@@ -14,6 +14,8 @@ type Client struct {
 	rateLimiter *rateLimiter
 }
 
+const httpTimeout = 30 * time.Second
+
 func NewClient(auth *auth) *Client {
 	apiKey, err := auth.getApiKey()
 	if err != nil {
@@ -21,6 +23,9 @@ func NewClient(auth *auth) *Client {
 	}
 
 	client := &Client{
+		Client: http.Client{
+			Timeout: httpTimeout,
+		},
 		auth:   auth,
 		apiKey: apiKey,
 		rateLimiter: &rateLimiter{

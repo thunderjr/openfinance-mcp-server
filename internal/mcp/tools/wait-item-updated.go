@@ -1,8 +1,8 @@
 package tools
 
 import (
-	"encoding/json"
-	"fmt"
+	"context"
+	"time"
 
 	mcp "github.com/metoro-io/mcp-golang"
 
@@ -10,6 +10,8 @@ import (
 	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
+
+const waitForSyncTimeout = 5 * time.Minute
 
 type WaitForSyncTool struct {
 	client *pluggy.Client
@@ -44,29 +46,23 @@ type WaitForSyncArgs struct {
 
 func (t *WaitForSyncTool) handleWaitForSync(args WaitForSyncArgs) (*mcp.ToolResponse, error) {
 	if args.ConnectionID == "" {
-		errorMessage := "Invalid connection_id parameter: must be a non-empty string"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Connection ID is required")
 	}
 
 	logger.Info("Waiting for sync to complete for connection:", args.ConnectionID)
 
-	err := t.client.WaitUpdated(args.ConnectionID)
+	ctx, cancel := context.WithTimeout(context.Background(), waitForSyncTimeout)
+	defer cancel()
+
+	err := t.client.WaitUpdated(ctx, args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error waiting for sync: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error waiting for sync", err)
 	}
 
 	item, err := t.client.GetItem(args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting connection status: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error getting connection status", err)
 	}
 
-	strItem, err := json.Marshal(item)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling connection status: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(strItem))), nil
+	return jsonResponse(item)
 }

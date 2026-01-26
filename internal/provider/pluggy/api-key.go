@@ -13,12 +13,12 @@ func (c *Client) ApiKey() (string, error) {
 		"clientSecret": c.auth.getClientSecret(),
 	})
 	if err != nil {
-		return "", fmt.Errorf("[pluggy.ApiKey] error marshalling data: %w", err)
+		return "", fmt.Errorf("pluggy.ApiKey: error marshalling data: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", "https://api.pluggy.ai/auth", bytes.NewBuffer(data))
 	if err != nil {
-		return "", fmt.Errorf("[pluggy.ApiKey] error creating request: %w", err)
+		return "", fmt.Errorf("pluggy.ApiKey: error creating request: %w", err)
 	}
 
 	req.Header.Set("accept", "application/json")
@@ -26,12 +26,12 @@ func (c *Client) ApiKey() (string, error) {
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("[pluggy.ApiKey] error making request: %w", err)
+		return "", fmt.Errorf("pluggy.ApiKey: error making request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("[pluggy.ApiKey] unexpected status code: %d", resp.StatusCode)
+		return "", fmt.Errorf("pluggy.ApiKey: unexpected status code: %d", resp.StatusCode)
 	}
 
 	var body struct {
@@ -39,7 +39,7 @@ func (c *Client) ApiKey() (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", fmt.Errorf("[pluggy.ApiKey] error decoding response: %w", err)
+		return "", fmt.Errorf("pluggy.ApiKey: error decoding response: %w", err)
 	}
 
 	return body.ApiKey, nil

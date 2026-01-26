@@ -1,9 +1,6 @@
 package tools
 
 import (
-	"encoding/json"
-	"fmt"
-
 	mcp "github.com/metoro-io/mcp-golang"
 
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
@@ -75,46 +72,30 @@ func (t *GetAccountTool) Handle() internalMcp.ToolHandlerFunc {
 
 func (t *ListAccountsTool) handleListAccounts(args ListAccountsArgs) (*mcp.ToolResponse, error) {
 	if args.ConnectionID == "" {
-		errorMessage := "Connection ID is required"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Connection ID is required")
 	}
 
 	logger.Info("Listing accounts for connection:", args.ConnectionID)
 
 	accounts, err := t.client.GetAccounts(args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error listing accounts: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error listing accounts", err)
 	}
 
-	accountsJSON, err := json.Marshal(accounts)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling accounts: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(accountsJSON))), nil
+	return jsonResponse(accounts)
 }
 
 func (t *GetAccountTool) handleGetAccount(args GetAccountArgs) (*mcp.ToolResponse, error) {
 	if args.AccountID == "" {
-		errorMessage := "Account ID is required"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Account ID is required")
 	}
 
 	logger.Info("Getting account details for:", args.AccountID)
 
 	account, err := t.client.GetAccount(args.AccountID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting account: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error getting account", err)
 	}
 
-	accountJSON, err := json.Marshal(account)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling account: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(accountJSON))), nil
+	return jsonResponse(account)
 }

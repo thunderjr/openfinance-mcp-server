@@ -14,9 +14,12 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 )
 
-var (
-	AUTH_CACHE_API_KEY           = "pluggy:api_key"
-	AUTH_CACHE_CONNECT_TOKEN_KEY = "pluggy:connect_tokens"
+const (
+	authCacheAPIKey            = "pluggy:api_key"
+	authCacheConnectTokenPrefix = "pluggy:connect_token:"
+
+	apiKeyTTL       = 2 * time.Hour
+	connectTokenTTL = 30 * time.Minute
 )
 
 type pluggyCredentials struct {
@@ -71,25 +74,31 @@ func (a *auth) getClientSecret() string {
 }
 
 func (a *auth) getApiKey() (string, error) {
-	res, err := a.cache.Get(context.TODO(), AUTH_CACHE_API_KEY).Result()
+	ctx := context.Background()
+	res, err := a.cache.Get(ctx, authCacheAPIKey).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return "", fmt.Errorf("error getting cached Pluggy.ai api key: %w", err)
+		return "", fmt.Errorf("pluggy.auth: error getting cached api key: %w", err)
 	}
 	return res, nil
 }
 
 func (a *auth) setApiKey(k string) error {
-	return a.cache.Set(context.TODO(), AUTH_CACHE_API_KEY, k, time.Hour*2).Err()
+	ctx := context.Background()
+	return a.cache.Set(ctx, authCacheAPIKey, k, apiKeyTTL).Err()
 }
 
 func (a *auth) getConnectToken(itemID string) (string, error) {
-	res, err := a.cache.HGet(context.TODO(), AUTH_CACHE_CONNECT_TOKEN_KEY, itemID).Result()
+	ctx := context.Background()
+	key := authCacheConnectTokenPrefix + itemID
+	res, err := a.cache.Get(ctx, key).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return "", fmt.Errorf("error getting cached Pluggy.ai connect token: %w", err)
+		return "", fmt.Errorf("pluggy.auth: error getting cached connect token: %w", err)
 	}
 	return res, nil
 }
 
 func (a *auth) setConnectToken(itemID, token string) error {
-	return a.cache.HSet(context.TODO(), AUTH_CACHE_CONNECT_TOKEN_KEY, itemID, token).Err()
+	ctx := context.Background()
+	key := authCacheConnectTokenPrefix + itemID
+	return a.cache.Set(ctx, key, token, connectTokenTTL).Err()
 }

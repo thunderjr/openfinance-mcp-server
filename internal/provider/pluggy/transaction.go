@@ -47,23 +47,23 @@ func (c *Client) GetTransactions(accountID string, query *TransactionFilter) (*p
 	url = fmt.Sprintf("%s?%s", url, q.Encode())
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("pluggy_client: error creating request: %w", err)
+		return nil, fmt.Errorf("pluggy.GetTransactions: error creating request: %w", err)
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
 
 	res, err := c.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("pluggy_client: error item making request: %w", err)
+		return nil, fmt.Errorf("pluggy.GetTransactions: error making request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("pluggy_client: error item request failed with status %d", res.StatusCode)
+		return nil, fmt.Errorf("pluggy.GetTransactions: request failed with status %d", res.StatusCode)
 	}
 
 	var data paginatedResponse[Transaction]
 	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
-		return nil, fmt.Errorf("pluggy_client: error item decoding response: %w", err)
+		return nil, fmt.Errorf("pluggy.GetTransactions: error decoding response: %w", err)
 	}
 
 	return &data, nil
