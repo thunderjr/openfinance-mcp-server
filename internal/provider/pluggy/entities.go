@@ -70,7 +70,7 @@ type Transaction struct {
 	Balance                 decimal.Decimal     `json:"balance"`
 	Category                string              `json:"category"`
 	AccountID               string              `json:"accountId"`
-	ProviderCode            interface{}         `json:"providerCode"`
+	ProviderCode            interface{}         `json:"-"`
 	Status                  string              `json:"status"`
 	PaymentData             *paymentData        `json:"paymentData,omitempty"`
 	Type                    string              `json:"type"`

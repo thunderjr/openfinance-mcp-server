@@ -15,6 +15,7 @@ type Connection struct {
 	Name         string `json:"name"`
 	ConnectionID string `json:"connection_id"`
 	AccountID    string `json:"account_id"`
+	AccountType  string `json:"account_type,omitempty"`
 }
 
 type ListConnectionsTool struct{}
@@ -35,7 +36,7 @@ Use this tool when:
 - The user asks about their connected banks
 - You need connection_id values for other tools
 
-Returns: List of connections with name, connection_id, and account_id.`
+Returns: List of connections with name, connection_id, account_id, and account_type (BANK or CREDIT).`
 }
 
 func (t *ListConnectionsTool) Handle() internalMcp.ToolHandlerFunc {
@@ -62,9 +63,10 @@ func (t *ListConnectionsTool) handleListConnections(args ListConnectionsArgs) (*
 	}
 
 	var rawConnections []struct {
-		Name      string `json:"name"`
-		ItemID    string `json:"item_id"`
-		AccountID string `json:"account_id"`
+		Name        string `json:"name"`
+		ItemID      string `json:"item_id"`
+		AccountID   string `json:"account_id"`
+		AccountType string `json:"account_type"`
 	}
 
 	if err := json.Unmarshal(data, &rawConnections); err != nil {
@@ -77,6 +79,7 @@ func (t *ListConnectionsTool) handleListConnections(args ListConnectionsArgs) (*
 			Name:         raw.Name,
 			ConnectionID: raw.ItemID,
 			AccountID:    raw.AccountID,
+			AccountType:  raw.AccountType,
 		}
 	}
 

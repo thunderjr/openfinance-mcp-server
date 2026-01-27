@@ -60,6 +60,8 @@ func main() {
 		tools.NewListInvestmentsTool(pluggyClient),
 		tools.NewListCreditCardBillsTool(pluggyClient),
 		tools.NewGetCreditCardBillTool(pluggyClient),
+		tools.NewGetCurrentBillTool(pluggyClient),
+		tools.NewRefreshConnectionsTool(pluggyClient),
 	)
 
 	logger.Info("Starting OpenFinance MCP Server")

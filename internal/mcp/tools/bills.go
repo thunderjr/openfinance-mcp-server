@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"time"
+
 	mcp "github.com/metoro-io/mcp-golang"
 
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
@@ -10,6 +12,7 @@ import (
 
 type ListCreditCardBillsArgs struct {
 	AccountID string `json:"account_id" jsonschema:"required,description=The credit card account ID to list bills for"`
+	Months    *int   `json:"months,omitempty" jsonschema:"description=Number of months of bills to return (default: 3, use 0 for all)"`
 }
 
 type ListCreditCardBillsTool struct {
@@ -32,7 +35,7 @@ Use this tool when:
 - Checking bill due dates or amounts
 - Looking at credit card payment history
 
-Returns: List of bills with amounts, due dates, and payment status.`
+Returns: Recent credit card bills (last 3 months by default; use months=0 for full history).`
 }
 
 func (t *ListCreditCardBillsTool) Handle() internalMcp.ToolHandlerFunc {
@@ -49,6 +52,23 @@ func (t *ListCreditCardBillsTool) handleListCreditCardBills(args ListCreditCardB
 	bills, err := t.client.GetBills(args.AccountID)
 	if err != nil {
 		return toolError("Error listing credit card bills", err)
+	}
+
+	// Filter to recent months by default
+	months := 3
+	if args.Months != nil {
+		months = *args.Months
+	}
+	if months > 0 {
+		cutoff := time.Now().AddDate(0, -months, 0)
+		filtered := make([]pluggy.Bill, 0, len(bills.Results))
+		for _, bill := range bills.Results {
+			if bill.DueDate.After(cutoff) {
+				filtered = append(filtered, bill)
+			}
+		}
+		bills.Results = filtered
+		bills.Total = len(filtered)
 	}
 
 	return jsonResponse(bills)

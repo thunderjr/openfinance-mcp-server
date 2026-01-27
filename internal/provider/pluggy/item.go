@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -64,6 +65,33 @@ func (c *Client) WaitUpdated(ctx context.Context, itemID string) error {
 		// Exponential backoff with max cap
 		backoff = min(backoff*2, waitUpdatedMaxBackoff)
 	}
+}
+
+func (c *Client) UpdateItem(itemID string) (*itemResponse, error) {
+	req, err := http.NewRequest("PATCH", fmt.Sprintf("https://api.pluggy.ai/items/%s", itemID), strings.NewReader("{}"))
+	if err != nil {
+		return nil, fmt.Errorf("pluggy.UpdateItem: error creating request: %w", err)
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("content-type", "application/json")
+
+	res, err := c.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("pluggy.UpdateItem: error making request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("pluggy.UpdateItem: request failed with status %d", res.StatusCode)
+	}
+
+	var data itemResponse
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("pluggy.UpdateItem: error decoding response: %w", err)
+	}
+
+	return &data, nil
 }
 
 func (c *Client) GetItem(id string) (*itemResponse, error) {

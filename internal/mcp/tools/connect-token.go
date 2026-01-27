@@ -1,8 +1,6 @@
 package tools
 
 import (
-	"fmt"
-
 	mcp "github.com/metoro-io/mcp-golang"
 
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
@@ -43,16 +41,14 @@ type CreateBankLinkTokenArgs struct {
 
 func (t *CreateBankLinkTokenTool) handleCreateBankLinkToken(args CreateBankLinkTokenArgs) (*mcp.ToolResponse, error) {
 	if args.ConnectionID == "" {
-		errorMessage := "Invalid connection_id parameter: must be a non-empty string"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Connection ID is required")
 	}
 
 	logger.Info("Creating bank link token for connection:", args.ConnectionID)
 
 	token, err := t.client.ConnectToken(args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error creating bank link token: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error creating bank link token", err)
 	}
 
 	return mcp.NewToolResponse(mcp.NewTextContent(token)), nil

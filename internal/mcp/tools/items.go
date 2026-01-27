@@ -1,9 +1,6 @@
 package tools
 
 import (
-	"encoding/json"
-	"fmt"
-
 	mcp "github.com/metoro-io/mcp-golang"
 
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
@@ -44,23 +41,15 @@ func (t *GetConnectionStatusTool) Handle() internalMcp.ToolHandlerFunc {
 
 func (t *GetConnectionStatusTool) handleGetConnectionStatus(args GetConnectionStatusArgs) (*mcp.ToolResponse, error) {
 	if args.ConnectionID == "" {
-		errorMessage := "Connection ID is required"
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return validationError("Connection ID is required")
 	}
 
 	logger.Info("Getting connection status for:", args.ConnectionID)
 
 	item, err := t.client.GetItem(args.ConnectionID)
 	if err != nil {
-		errorMessage := fmt.Sprintf("Error getting connection status: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
+		return toolError("Error getting connection status", err)
 	}
 
-	itemJSON, err := json.Marshal(item)
-	if err != nil {
-		errorMessage := fmt.Sprintf("Error marshalling connection status: %v", err)
-		return mcp.NewToolResponse(mcp.NewTextContent(errorMessage)), fmt.Errorf(errorMessage)
-	}
-
-	return mcp.NewToolResponse(mcp.NewTextContent(string(itemJSON))), nil
+	return jsonResponse(item)
 }

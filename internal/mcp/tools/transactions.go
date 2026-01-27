@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	TransactionDefaultPageSize = 20
-	TransactionMaxPageSize     = 50
+	TransactionDefaultPageSize = 50
+	TransactionMaxPageSize     = 500
 )
 
 type ListTransactionsArgs struct {
@@ -20,7 +20,7 @@ type ListTransactionsArgs struct {
 	From        *string   `json:"from,omitempty" jsonschema:"description=Filter transactions from this date (format: yyyy-mm-dd)"`
 	To          *string   `json:"to,omitempty" jsonschema:"description=Filter transactions to this date (format: yyyy-mm-dd)"`
 	Page        *int      `json:"page,omitempty" jsonschema:"description=Page number for pagination (default: 1)"`
-	PageSize    *int      `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 50)"`
+	PageSize    *int      `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 50, max: 500)"`
 	CreatedFrom *string   `json:"created_from,omitempty" jsonschema:"description=Filter transactions created from this date (ISO 8601 format)"`
 	IDs         *[]string `json:"ids,omitempty" jsonschema:"description=Filter transactions by specific IDs"`
 }
@@ -109,6 +109,11 @@ func (t *ListTransactionsTool) handleListTransactions(args ListTransactionsArgs)
 	transactions, err := t.client.GetTransactions(args.AccountID, filter)
 	if err != nil {
 		return toolError("Error listing transactions", err)
+	}
+
+	// Strip redundant accountId from list results (caller already knows the account)
+	for i := range transactions.Results {
+		transactions.Results[i].AccountID = ""
 	}
 
 	return jsonResponse(transactions)

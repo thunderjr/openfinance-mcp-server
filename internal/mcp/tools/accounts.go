@@ -32,7 +32,7 @@ Use this tool when:
 - Looking for account IDs to query transactions or balances
 - The user asks about their accounts at a specific bank
 
-Returns: List of accounts with IDs, types, names, and current balances.`
+Returns: List of accounts with IDs, types, names, and CURRENT BALANCES. No need to call get_account separately unless you need credit card metadata (limits, due dates).`
 }
 
 func (t *ListAccountsTool) Handle() internalMcp.ToolHandlerFunc {

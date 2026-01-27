@@ -9,15 +9,16 @@ import (
 )
 
 const (
-	InvestmentDefaultPageSize = 20
-	InvestmentMaxPageSize     = 50
+	InvestmentDefaultPageSize = 50
+	InvestmentMaxPageSize     = 500
 )
 
 type ListInvestmentsArgs struct {
 	ConnectionID string  `json:"connection_id" jsonschema:"required,description=The connection ID to list investments for"`
 	Type         *string `json:"type,omitempty" jsonschema:"description=Filter investments by type (COE, EQUITY, ETF, FIXED_INCOME, MUTUAL_FUND, SECURITY, OTHER)"`
 	Page         *int    `json:"page,omitempty" jsonschema:"description=Page number for pagination (default: 1)"`
-	PageSize     *int    `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 20, max: 50)"`
+	PageSize     *int    `json:"page_size,omitempty" jsonschema:"description=Number of results per page (default: 50, max: 500)"`
+	IncludeAll   *bool   `json:"include_all,omitempty" jsonschema:"description=Include withdrawn/zero-balance investments (default: false, only active investments are returned)"`
 }
 
 type ListInvestmentsTool struct {
@@ -40,7 +41,7 @@ Use this tool when:
 - Checking investment values or performance
 - Looking for specific investment types (stocks, ETFs, fixed income)
 
-Returns: List of investment positions with current values, types, and quantities.`
+Returns: List of ACTIVE investment positions (withdrawn/zero-balance excluded by default; use include_all=true to see all).`
 }
 
 func (t *ListInvestmentsTool) Handle() internalMcp.ToolHandlerFunc {
@@ -76,6 +77,24 @@ func (t *ListInvestmentsTool) handleListInvestments(args ListInvestmentsArgs) (*
 	investments, err := t.client.GetInvestments(args.ConnectionID, filter)
 	if err != nil {
 		return toolError("Error listing investments", err)
+	}
+
+	// Filter out withdrawn/zero-balance investments by default
+	if args.IncludeAll == nil || !*args.IncludeAll {
+		filtered := make([]pluggy.Investment, 0, len(investments.Results))
+		for _, inv := range investments.Results {
+			if inv.Status == "TOTAL_WITHDRAWAL" && inv.Balance.IsZero() && inv.Amount.IsZero() {
+				continue
+			}
+			filtered = append(filtered, inv)
+		}
+		investments.Results = filtered
+		investments.Total = len(filtered)
+	}
+
+	// Strip redundant itemId from list results (caller already knows the connection)
+	for i := range investments.Results {
+		investments.Results[i].ItemID = ""
 	}
 
 	return jsonResponse(investments)
