@@ -20,10 +20,14 @@ make start    # Run the built binary
 - `main.go` - Initializes logger, Pluggy client, registers MCP tools, starts stdio server
 - Embeds `.env` file at compile time via `//go:embed`
 
-### Configuration Files (in `~/.config/finops/`)
-- `pluggy.json` - Pluggy API credentials (`PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET`)
-- `accounts.json` - Saved bank connections for `list_connections` tool
-- `openfinance-mcp.log` - Application logs
+### Configuration & Data Files
+- `~/.config/finops/pluggy.json` - Legacy plaintext credentials. Read **once** on first run to seed the encrypted store, then no longer needed (the encrypted DB becomes authoritative). Can also be supplied via `PLUGGY_CLIENT_ID`/`PLUGGY_CLIENT_SECRET` env.
+- `~/.config/finops/accounts.json` - Saved bank connections for `list_connections` tool
+- `~/.config/finops/openfinance-mcp.log` - Application logs
+- `~/.openfinance/pluggy.db` - Encrypted SQLite store (mode 0700 dir). Holds the Pluggy credentials, the cached API key (2h TTL), and connect tokens (30m TTL). All secret values are sealed with AES-256-GCM before hitting disk.
+
+### Encryption Key
+The AES-256 master key is resolved in order: `$OPENFINANCE_DB_KEY` (base64) → OS keychain item `openfinance-mcp-server/db-encryption-key` (auto-generated on first run) → `~/.openfinance/master.key` (0600 fallback). The key never lives inside the DB file.
 
 ### Core Packages
 
@@ -40,7 +44,9 @@ make start    # Run the built binary
 **`internal/provider/mcp/`** - MCP framework abstractions
 - `tool-registry.go` - `ToolRegistry` that registers all tools with the MCP server
 
-**`internal/provider/redis/`** - Redis client for caching API keys and connect tokens
+**`internal/provider/sqlite/`** - Encrypted key/value store (pure-Go `modernc.org/sqlite`, no CGO) backing auth credentials and cached tokens with optional TTL. Replaces the old Redis cache.
+
+**`internal/provider/secret/`** - Master-key resolution (env → OS keychain → keyfile) and AES-256-GCM seal/open used by the sqlite store.
 
 ### Adding New Tools
 
@@ -63,5 +69,13 @@ func (t *ListAccountsTool) Handle() internalMcp.ToolHandlerFunc {
 
 ### Dependencies
 - MCP server: `github.com/metoro-io/mcp-golang`
-- Redis: `github.com/redis/go-redis/v9`
-- Requires running Redis instance for token caching
+- SQLite (pure Go, no CGO): `modernc.org/sqlite`
+- OS keychain: `github.com/zalando/go-keyring`
+- No external services required (Redis removed)
+
+### Calling the server with mcporter
+Registered as `openfinance` in `~/.mcporter/mcporter.json` (stdio → built binary).
+```bash
+npx mcporter call openfinance.list_connections
+npx mcporter list openfinance --schema   # show all tool signatures
+```

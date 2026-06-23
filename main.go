@@ -1,15 +1,15 @@
 package main
 
 import (
-	_ "embed"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 
-	"github.com/joho/godotenv"
+	// autoload loads a .env from the working directory at runtime (dev
+	// convenience for seeding a fresh DB). Credentials are no longer embedded
+	// into the binary at compile time.
 	_ "github.com/joho/godotenv/autoload"
 	server "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
@@ -18,22 +18,11 @@ import (
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
-	"github.com/thunderjr/openfinance-mcp-server/internal/provider/redis"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/secret"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/sqlite"
 )
 
-//go:embed .env
-var envFile string
-
 func main() {
-	envs, err := godotenv.Parse(strings.NewReader(envFile))
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
-
-	for k, v := range envs {
-		os.Setenv(k, v)
-	}
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalf("Error getting home directory: %v", err)
@@ -47,7 +36,19 @@ func main() {
 	handleErr("logger.Init", logger.Init(filepath.Join(logDir, "openfinance-mcp.log")))
 	defer logger.Close()
 
-	pluggyClient := pluggy.NewClient(pluggy.NewAuth(redis.Instance()))
+	dataDir := filepath.Join(homeDir, ".openfinance")
+	if err := os.MkdirAll(dataDir, 0700); err != nil {
+		log.Fatalf("Error creating data directory: %v", err)
+	}
+
+	masterKey, err := secret.MasterKey(dataDir)
+	handleErr("secret.MasterKey", err)
+
+	store, err := sqlite.Open(filepath.Join(dataDir, "pluggy.db"), masterKey)
+	handleErr("sqlite.Open", err)
+	defer store.Close()
+
+	pluggyClient := pluggy.NewClient(pluggy.NewAuth(store))
 
 	toolRegistry := mcp.NewToolRegistry(
 		tools.NewListConnectionsTool(),

@@ -39,7 +39,7 @@ func NewClient(auth *auth) *Client {
 			logger.Fatalf("[pluggy] error authorizing: %v", err)
 		}
 		if err = auth.setApiKey(apiKey); err != nil {
-			logger.Fatalf("[redis][pluggy] error saving api key: %v", err)
+			logger.Fatalf("[pluggy] error saving api key to encrypted store: %v", err)
 		}
 	}
 

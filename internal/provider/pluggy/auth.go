@@ -1,26 +1,32 @@
 package pluggy
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 )
 
 const (
-	authCacheAPIKey            = "pluggy:api_key"
-	authCacheConnectTokenPrefix = "pluggy:connect_token:"
+	credClientID     = "pluggy:client_id"
+	credClientSecret = "pluggy:client_secret"
+	cacheAPIKey      = "pluggy:api_key"
+	connectTokenKey  = "pluggy:connect_token:"
 
 	apiKeyTTL       = 2 * time.Hour
 	connectTokenTTL = 30 * time.Minute
 )
+
+// Store is the encrypted persistence backing auth (api keys, connect tokens,
+// and the Pluggy client credentials). It is satisfied by sqlite.Store.
+type Store interface {
+	Get(key string) (string, bool, error)
+	Set(key, value string, ttl time.Duration) error
+}
 
 type pluggyCredentials struct {
 	ClientID     string `json:"PLUGGY_CLIENT_ID"`
@@ -28,39 +34,89 @@ type pluggyCredentials struct {
 }
 
 type auth struct {
-	cache       *redis.Client
+	store       Store
 	credentials *pluggyCredentials
 	credOnce    sync.Once
 }
 
-func NewAuth(cache *redis.Client) *auth {
-	return &auth{cache: cache}
+func NewAuth(store Store) *auth {
+	return &auth{store: store}
 }
 
+// loadCredentials resolves the Pluggy client credentials. The encrypted store
+// is authoritative; on first run the credentials are seeded (once) from the
+// environment or the legacy ~/.config/finops/pluggy.json file and then
+// persisted, so later runs read only from the encrypted database.
 func (a *auth) loadCredentials() {
 	a.credOnce.Do(func() {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			logger.Fatalf("error getting home directory: %v", err)
+		if creds, ok := a.credentialsFromStore(); ok {
+			a.credentials = creds
+			return
 		}
 
-		configPath := filepath.Join(homeDir, ".config", "finops", "pluggy.json")
-		data, err := os.ReadFile(configPath)
-		if err != nil {
-			logger.Fatalf("error reading pluggy credentials from %s: %v", configPath, err)
+		creds, source := a.bootstrapCredentials()
+		if creds == nil {
+			logger.Fatalf("pluggy.auth: no credentials found - set PLUGGY_CLIENT_ID/PLUGGY_CLIENT_SECRET or create ~/.config/finops/pluggy.json")
 		}
 
-		var creds pluggyCredentials
-		if err := json.Unmarshal(data, &creds); err != nil {
-			logger.Fatalf("error parsing pluggy credentials: %v", err)
+		if err := a.persistCredentials(creds); err != nil {
+			logger.Fatalf("pluggy.auth: error saving credentials to encrypted store: %v", err)
 		}
-
-		if creds.ClientID == "" || creds.ClientSecret == "" {
-			logger.Fatalf("pluggy credentials file missing PLUGGY_CLIENT_ID or PLUGGY_CLIENT_SECRET")
-		}
-
-		a.credentials = &creds
+		logger.Infof("pluggy.auth: imported credentials from %s into encrypted store", source)
+		a.credentials = creds
 	})
+}
+
+func (a *auth) credentialsFromStore() (*pluggyCredentials, bool) {
+	id, idOK, err := a.store.Get(credClientID)
+	if err != nil {
+		logger.Fatalf("pluggy.auth: error reading client id from store: %v", err)
+	}
+	secret, secretOK, err := a.store.Get(credClientSecret)
+	if err != nil {
+		logger.Fatalf("pluggy.auth: error reading client secret from store: %v", err)
+	}
+	if idOK && secretOK && id != "" && secret != "" {
+		return &pluggyCredentials{ClientID: id, ClientSecret: secret}, true
+	}
+	return nil, false
+}
+
+// bootstrapCredentials reads credentials from the environment first, then the
+// legacy plaintext config file. It does not delete the legacy file.
+func (a *auth) bootstrapCredentials() (*pluggyCredentials, string) {
+	if id, secret := os.Getenv("PLUGGY_CLIENT_ID"), os.Getenv("PLUGGY_CLIENT_SECRET"); id != "" && secret != "" {
+		return &pluggyCredentials{ClientID: id, ClientSecret: secret}, "environment"
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		logger.Fatalf("pluggy.auth: error getting home directory: %v", err)
+	}
+	configPath := filepath.Join(homeDir, ".config", "finops", "pluggy.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ""
+		}
+		logger.Fatalf("pluggy.auth: error reading %s: %v", configPath, err)
+	}
+
+	var creds pluggyCredentials
+	if err := json.Unmarshal(data, &creds); err != nil {
+		logger.Fatalf("pluggy.auth: error parsing %s: %v", configPath, err)
+	}
+	if creds.ClientID == "" || creds.ClientSecret == "" {
+		return nil, ""
+	}
+	return &creds, configPath
+}
+
+func (a *auth) persistCredentials(creds *pluggyCredentials) error {
+	if err := a.store.Set(credClientID, creds.ClientID, 0); err != nil {
+		return err
+	}
+	return a.store.Set(credClientSecret, creds.ClientSecret, 0)
 }
 
 func (a *auth) getClientID() string {
@@ -74,31 +130,25 @@ func (a *auth) getClientSecret() string {
 }
 
 func (a *auth) getApiKey() (string, error) {
-	ctx := context.Background()
-	res, err := a.cache.Get(ctx, authCacheAPIKey).Result()
-	if err != nil && !errors.Is(err, redis.Nil) {
+	key, _, err := a.store.Get(cacheAPIKey)
+	if err != nil {
 		return "", fmt.Errorf("pluggy.auth: error getting cached api key: %w", err)
 	}
-	return res, nil
+	return key, nil
 }
 
 func (a *auth) setApiKey(k string) error {
-	ctx := context.Background()
-	return a.cache.Set(ctx, authCacheAPIKey, k, apiKeyTTL).Err()
+	return a.store.Set(cacheAPIKey, k, apiKeyTTL)
 }
 
 func (a *auth) getConnectToken(itemID string) (string, error) {
-	ctx := context.Background()
-	key := authCacheConnectTokenPrefix + itemID
-	res, err := a.cache.Get(ctx, key).Result()
-	if err != nil && !errors.Is(err, redis.Nil) {
+	token, _, err := a.store.Get(connectTokenKey + itemID)
+	if err != nil {
 		return "", fmt.Errorf("pluggy.auth: error getting cached connect token: %w", err)
 	}
-	return res, nil
+	return token, nil
 }
 
 func (a *auth) setConnectToken(itemID, token string) error {
-	ctx := context.Background()
-	key := authCacheConnectTokenPrefix + itemID
-	return a.cache.Set(ctx, key, token, connectTokenTTL).Err()
+	return a.store.Set(connectTokenKey+itemID, token, connectTokenTTL)
 }
