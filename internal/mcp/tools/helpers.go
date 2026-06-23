@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	mcp "github.com/metoro-io/mcp-golang"
@@ -10,14 +11,14 @@ import (
 // validationError creates a tool response for validation errors.
 // Returns both a user-facing response and an error for logging.
 func validationError(msg string) (*mcp.ToolResponse, error) {
-	return mcp.NewToolResponse(mcp.NewTextContent(msg)), fmt.Errorf(msg)
+	return mcp.NewToolResponse(mcp.NewTextContent(msg)), errors.New(msg)
 }
 
 // toolError creates a tool response for operational errors.
 // Formats the error with a prefix for consistency.
 func toolError(prefix string, err error) (*mcp.ToolResponse, error) {
 	msg := fmt.Sprintf("%s: %v", prefix, err)
-	return mcp.NewToolResponse(mcp.NewTextContent(msg)), fmt.Errorf(msg)
+	return mcp.NewToolResponse(mcp.NewTextContent(msg)), errors.New(msg)
 }
 
 // jsonResponse marshals data to compact JSON (empty/zero/null fields stripped)
