@@ -15,6 +15,7 @@ import (
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 
 	"github.com/thunderjr/openfinance-mcp-server/internal/mcp/tools"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/connections"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
@@ -50,19 +51,25 @@ func main() {
 
 	pluggyClient := pluggy.NewClient(pluggy.NewAuth(store))
 
+	connRegistry := connections.NewRegistry(store)
+	// Back-compat: seed the store from a legacy accounts.json if one exists.
+	if err := connRegistry.ImportLegacy(filepath.Join(logDir, "accounts.json")); err != nil {
+		logger.Info("connections: legacy accounts.json import skipped:", err)
+	}
+
 	toolRegistry := mcp.NewToolRegistry(
-		tools.NewListConnectionsTool(),
-		tools.NewCreateBankLinkTokenTool(pluggyClient),
-		tools.NewWaitForSyncTool(pluggyClient),
-		tools.NewGetConnectionStatusTool(pluggyClient),
-		tools.NewListAccountsTool(pluggyClient),
+		tools.NewListConnectionsTool(connRegistry, pluggyClient),
+		tools.NewCreateBankLinkTokenTool(pluggyClient, connRegistry),
+		tools.NewWaitForSyncTool(pluggyClient, connRegistry),
+		tools.NewGetConnectionStatusTool(pluggyClient, connRegistry),
+		tools.NewListAccountsTool(pluggyClient, connRegistry),
 		tools.NewGetAccountTool(pluggyClient),
 		tools.NewListTransactionsTool(pluggyClient),
-		tools.NewListInvestmentsTool(pluggyClient),
+		tools.NewListInvestmentsTool(pluggyClient, connRegistry),
 		tools.NewListCreditCardBillsTool(pluggyClient),
 		tools.NewGetCreditCardBillTool(pluggyClient),
 		tools.NewGetCurrentBillTool(pluggyClient),
-		tools.NewRefreshConnectionsTool(pluggyClient),
+		tools.NewRefreshConnectionsTool(connRegistry, pluggyClient),
 	)
 
 	logger.Info("Starting OpenFinance MCP Server")

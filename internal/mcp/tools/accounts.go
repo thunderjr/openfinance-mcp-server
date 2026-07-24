@@ -3,6 +3,7 @@ package tools
 import (
 	mcp "github.com/metoro-io/mcp-golang"
 
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/connections"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
@@ -13,11 +14,12 @@ type ListAccountsArgs struct {
 }
 
 type ListAccountsTool struct {
-	client *pluggy.Client
+	client   *pluggy.Client
+	registry *connections.Registry
 }
 
-func NewListAccountsTool(client *pluggy.Client) *ListAccountsTool {
-	return &ListAccountsTool{client}
+func NewListAccountsTool(client *pluggy.Client, registry *connections.Registry) *ListAccountsTool {
+	return &ListAccountsTool{client: client, registry: registry}
 }
 
 func (t *ListAccountsTool) Name() string {
@@ -82,6 +84,7 @@ func (t *ListAccountsTool) handleListAccounts(args ListAccountsArgs) (*mcp.ToolR
 		return toolError("Error listing accounts", err)
 	}
 
+	registerItem(t.registry, args.ConnectionID)
 	return jsonResponse(accounts)
 }
 

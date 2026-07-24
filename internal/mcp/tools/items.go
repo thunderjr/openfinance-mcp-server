@@ -3,6 +3,7 @@ package tools
 import (
 	mcp "github.com/metoro-io/mcp-golang"
 
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/connections"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
@@ -13,11 +14,12 @@ type GetConnectionStatusArgs struct {
 }
 
 type GetConnectionStatusTool struct {
-	client *pluggy.Client
+	client   *pluggy.Client
+	registry *connections.Registry
 }
 
-func NewGetConnectionStatusTool(client *pluggy.Client) *GetConnectionStatusTool {
-	return &GetConnectionStatusTool{client}
+func NewGetConnectionStatusTool(client *pluggy.Client, registry *connections.Registry) *GetConnectionStatusTool {
+	return &GetConnectionStatusTool{client: client, registry: registry}
 }
 
 func (t *GetConnectionStatusTool) Name() string {
@@ -51,5 +53,6 @@ func (t *GetConnectionStatusTool) handleGetConnectionStatus(args GetConnectionSt
 		return toolError("Error getting connection status", err)
 	}
 
+	registerItem(t.registry, args.ConnectionID)
 	return jsonResponse(item)
 }
