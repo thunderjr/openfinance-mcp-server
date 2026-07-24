@@ -2,27 +2,25 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	mcp "github.com/metoro-io/mcp-golang"
 
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/connections"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
-	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
 const refreshConnectionsTimeout = 10 * time.Minute
 
 type RefreshConnectionsTool struct {
-	client *pluggy.Client
+	registry *connections.Registry
+	gateway  connectionGateway
 }
 
-func NewRefreshConnectionsTool(client *pluggy.Client) *RefreshConnectionsTool {
-	return &RefreshConnectionsTool{client}
+func NewRefreshConnectionsTool(registry *connections.Registry, gateway connectionGateway) *RefreshConnectionsTool {
+	return &RefreshConnectionsTool{registry: registry, gateway: gateway}
 }
 
 func (t *RefreshConnectionsTool) Name() string {
@@ -50,7 +48,7 @@ type RefreshConnectionsArgs struct {
 
 type refreshResult struct {
 	ItemID      string   `json:"item_id"`
-	Connections []string `json:"connections"`
+	Connections []string `json:"connections,omitempty"`
 	Status      string   `json:"status"`
 	Error       string   `json:"error,omitempty"`
 }
@@ -58,57 +56,23 @@ type refreshResult struct {
 func (t *RefreshConnectionsTool) handleRefreshConnections(args RefreshConnectionsArgs) (*mcp.ToolResponse, error) {
 	logger.Info("Refreshing bank connections")
 
-	homeDir, err := os.UserHomeDir()
+	itemIDs, err := t.registry.List()
 	if err != nil {
-		return toolError("Error getting home directory", err)
+		return toolError("Error reading saved connections", err)
 	}
 
-	configPath := filepath.Join(homeDir, ".config", "finops", "accounts.json")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return mcp.NewToolResponse(mcp.NewTextContent("[]")), nil
-		}
-		return toolError("Error reading accounts config", err)
-	}
-
-	var rawConnections []struct {
-		Name        string `json:"name"`
-		ItemID      string `json:"item_id"`
-		AccountID   string `json:"account_id"`
-		AccountType string `json:"account_type"`
-	}
-
-	if err := json.Unmarshal(data, &rawConnections); err != nil {
-		return toolError("Error parsing accounts config", err)
-	}
-
-	// Deduplicate by item_id and collect connection names
-	type itemInfo struct {
-		itemID      string
-		connections []string
-	}
-
-	seen := make(map[string]*itemInfo)
-	var order []string
-
-	for _, raw := range rawConnections {
-		if args.ConnectionID != "" && raw.ItemID != args.ConnectionID {
-			continue
-		}
-
-		if info, ok := seen[raw.ItemID]; ok {
-			info.connections = append(info.connections, raw.Name)
-		} else {
-			seen[raw.ItemID] = &itemInfo{
-				itemID:      raw.ItemID,
-				connections: []string{raw.Name},
+	// Optionally narrow to a single connection.
+	if args.ConnectionID != "" {
+		filtered := itemIDs[:0:0]
+		for _, id := range itemIDs {
+			if id == args.ConnectionID {
+				filtered = append(filtered, id)
 			}
-			order = append(order, raw.ItemID)
 		}
+		itemIDs = filtered
 	}
 
-	if len(order) == 0 {
+	if len(itemIDs) == 0 {
 		return mcp.NewToolResponse(mcp.NewTextContent("[]")), nil
 	}
 
@@ -121,53 +85,29 @@ func (t *RefreshConnectionsTool) handleRefreshConnections(args RefreshConnection
 		results []refreshResult
 	)
 
-	for _, itemID := range order {
+	for _, itemID := range itemIDs {
 		wg.Add(1)
-		go func(info *itemInfo) {
+		go func(itemID string) {
 			defer wg.Done()
 
-			result := refreshResult{
-				ItemID:      info.itemID,
-				Connections: info.connections,
-			}
+			result := refreshResult{ItemID: itemID}
 
-			logger.Info("Triggering sync for item:", info.itemID)
-
-			_, err := t.client.UpdateItem(info.itemID)
+			logger.Info("Triggering sync for item:", itemID)
+			info, err := t.gateway.RefreshItem(ctx, itemID)
 			if err != nil {
 				result.Status = "ERROR"
 				result.Error = err.Error()
-				mu.Lock()
-				results = append(results, result)
-				mu.Unlock()
-				return
+			} else {
+				result.Status = info.Status
+				if info.ConnectorName != "" {
+					result.Connections = []string{info.ConnectorName}
+				}
 			}
 
-			err = t.client.WaitUpdated(ctx, info.itemID)
-			if err != nil {
-				result.Status = "ERROR"
-				result.Error = err.Error()
-				mu.Lock()
-				results = append(results, result)
-				mu.Unlock()
-				return
-			}
-
-			item, err := t.client.GetItem(info.itemID)
-			if err != nil {
-				result.Status = "ERROR"
-				result.Error = err.Error()
-				mu.Lock()
-				results = append(results, result)
-				mu.Unlock()
-				return
-			}
-
-			result.Status = item.Status
 			mu.Lock()
 			results = append(results, result)
 			mu.Unlock()
-		}(seen[itemID])
+		}(itemID)
 	}
 
 	wg.Wait()

@@ -22,7 +22,7 @@ make start    # Run the built binary
 
 ### Configuration & Data Files
 - `~/.config/finops/pluggy.json` - Legacy plaintext credentials. Read **once** on first run to seed the encrypted store, then no longer needed (the encrypted DB becomes authoritative). Can also be supplied via `PLUGGY_CLIENT_ID`/`PLUGGY_CLIENT_SECRET` env.
-- `~/.config/finops/accounts.json` - Saved bank connections for `list_connections` tool
+- `~/.config/finops/accounts.json` - **Legacy/optional.** No longer required. Connections are now auto-registered in the encrypted store (`connections:items` key) the first time any tool resolves an item successfully; `list_connections`/`refresh_connections` read from there and fetch names/accounts live from Pluggy. If this file exists it is imported into the store once on startup (never modified/removed).
 - `~/.config/finops/openfinance-mcp.log` - Application logs
 - `~/.openfinance/pluggy.db` - Encrypted SQLite store (mode 0700 dir). Holds the Pluggy credentials, the cached API key (2h TTL), and connect tokens (30m TTL). All secret values are sealed with AES-256-GCM before hitting disk.
 

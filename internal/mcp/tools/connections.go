@@ -1,15 +1,34 @@
 package tools
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
+	"context"
 
 	mcp "github.com/metoro-io/mcp-golang"
 
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/connections"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
+
+// connectionGateway is the narrow seam over the Pluggy item subsystem the
+// connection tools depend on. *pluggy.Client satisfies it; tests fake it at the
+// network boundary.
+type connectionGateway interface {
+	Connection(itemID string) (pluggy.ConnectionInfo, error)
+	RefreshItem(ctx context.Context, itemID string) (pluggy.ConnectionInfo, error)
+}
+
+// registerItem records a resolved item_id, logging (not failing) on error so a
+// registry hiccup never breaks the tool the user actually called.
+func registerItem(registry *connections.Registry, itemID string) {
+	if registry == nil || itemID == "" {
+		return
+	}
+	if err := registry.Register(itemID); err != nil {
+		logger.Info("connections: failed to register item:", itemID, err)
+	}
+}
 
 type Connection struct {
 	Name         string `json:"name"`
@@ -18,10 +37,13 @@ type Connection struct {
 	AccountType  string `json:"account_type,omitempty"`
 }
 
-type ListConnectionsTool struct{}
+type ListConnectionsTool struct {
+	registry *connections.Registry
+	gateway  connectionGateway
+}
 
-func NewListConnectionsTool() *ListConnectionsTool {
-	return &ListConnectionsTool{}
+func NewListConnectionsTool(registry *connections.Registry, gateway connectionGateway) *ListConnectionsTool {
+	return &ListConnectionsTool{registry: registry, gateway: gateway}
 }
 
 func (t *ListConnectionsTool) Name() string {
@@ -29,7 +51,7 @@ func (t *ListConnectionsTool) Name() string {
 }
 
 func (t *ListConnectionsTool) Description() string {
-	return `Lists all saved bank connections from local configuration.
+	return `Lists all saved bank connections.
 
 Use this tool when:
 - Starting a conversation to see available accounts
@@ -45,43 +67,32 @@ func (t *ListConnectionsTool) Handle() internalMcp.ToolHandlerFunc {
 
 type ListConnectionsArgs struct{}
 
-func (t *ListConnectionsTool) handleListConnections(args ListConnectionsArgs) (*mcp.ToolResponse, error) {
+func (t *ListConnectionsTool) handleListConnections(ListConnectionsArgs) (*mcp.ToolResponse, error) {
 	logger.Info("Listing saved bank connections")
 
-	homeDir, err := os.UserHomeDir()
+	itemIDs, err := t.registry.List()
 	if err != nil {
-		return toolError("Error getting home directory", err)
+		return toolError("Error reading saved connections", err)
 	}
 
-	configPath := filepath.Join(homeDir, ".config", "finops", "accounts.json")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return mcp.NewToolResponse(mcp.NewTextContent("[]")), nil
+	rows := make([]Connection, 0)
+	for _, itemID := range itemIDs {
+		info, err := t.gateway.Connection(itemID)
+		if err != nil {
+			// A connection Pluggy can no longer resolve (deleted, expired) is
+			// skipped, not fatal: the rest of the list still returns.
+			logger.Info("Skipping unresolved connection:", itemID, err)
+			continue
 		}
-		return toolError("Error reading accounts config", err)
-	}
-
-	var rawConnections []struct {
-		Name        string `json:"name"`
-		ItemID      string `json:"item_id"`
-		AccountID   string `json:"account_id"`
-		AccountType string `json:"account_type"`
-	}
-
-	if err := json.Unmarshal(data, &rawConnections); err != nil {
-		return toolError("Error parsing accounts config", err)
-	}
-
-	connections := make([]Connection, len(rawConnections))
-	for i, raw := range rawConnections {
-		connections[i] = Connection{
-			Name:         raw.Name,
-			ConnectionID: raw.ItemID,
-			AccountID:    raw.AccountID,
-			AccountType:  raw.AccountType,
+		for _, acc := range info.Accounts {
+			rows = append(rows, Connection{
+				Name:         info.ConnectorName + " - " + acc.Name,
+				ConnectionID: itemID,
+				AccountID:    acc.ID,
+				AccountType:  acc.Type,
+			})
 		}
 	}
 
-	return jsonResponse(connections)
+	return jsonResponse(rows)
 }

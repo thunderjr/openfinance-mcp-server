@@ -3,17 +3,19 @@ package tools
 import (
 	mcp "github.com/metoro-io/mcp-golang"
 
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/connections"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
 )
 
 type CreateBankLinkTokenTool struct {
-	client *pluggy.Client
+	client   *pluggy.Client
+	registry *connections.Registry
 }
 
-func NewCreateBankLinkTokenTool(client *pluggy.Client) *CreateBankLinkTokenTool {
-	return &CreateBankLinkTokenTool{client}
+func NewCreateBankLinkTokenTool(client *pluggy.Client, registry *connections.Registry) *CreateBankLinkTokenTool {
+	return &CreateBankLinkTokenTool{client: client, registry: registry}
 }
 
 func (t *CreateBankLinkTokenTool) Name() string {
@@ -51,5 +53,6 @@ func (t *CreateBankLinkTokenTool) handleCreateBankLinkToken(args CreateBankLinkT
 		return toolError("Error creating bank link token", err)
 	}
 
+	registerItem(t.registry, args.ConnectionID)
 	return mcp.NewToolResponse(mcp.NewTextContent(token)), nil
 }

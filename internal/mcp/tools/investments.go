@@ -3,6 +3,7 @@ package tools
 import (
 	mcp "github.com/metoro-io/mcp-golang"
 
+	"github.com/thunderjr/openfinance-mcp-server/internal/provider/connections"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/logger"
 	internalMcp "github.com/thunderjr/openfinance-mcp-server/internal/provider/mcp"
 	"github.com/thunderjr/openfinance-mcp-server/internal/provider/pluggy"
@@ -22,11 +23,12 @@ type ListInvestmentsArgs struct {
 }
 
 type ListInvestmentsTool struct {
-	client *pluggy.Client
+	client   *pluggy.Client
+	registry *connections.Registry
 }
 
-func NewListInvestmentsTool(client *pluggy.Client) *ListInvestmentsTool {
-	return &ListInvestmentsTool{client}
+func NewListInvestmentsTool(client *pluggy.Client, registry *connections.Registry) *ListInvestmentsTool {
+	return &ListInvestmentsTool{client: client, registry: registry}
 }
 
 func (t *ListInvestmentsTool) Name() string {
@@ -78,6 +80,8 @@ func (t *ListInvestmentsTool) handleListInvestments(args ListInvestmentsArgs) (*
 	if err != nil {
 		return toolError("Error listing investments", err)
 	}
+
+	registerItem(t.registry, args.ConnectionID)
 
 	// Filter out withdrawn/zero-balance investments by default
 	if args.IncludeAll == nil || !*args.IncludeAll {
